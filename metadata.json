@@ -1,0 +1,5 @@
+{
+  "name": "Lumina Medical Deep-Zoom",
+  "description": "A high-performance medical imaging viewer featuring smooth deep-zoom, panning, and real-time image processing using Canvas API and RxJS.",
+  "requestFramePermissions": []
+}
