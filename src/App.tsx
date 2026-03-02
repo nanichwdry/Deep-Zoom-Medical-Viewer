@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MedicalViewer } from './components/MedicalViewer';
-import { ImageMetadata } from './types';
+import { ImageMetadata, AnnotationColor } from './types';
 import { Database, ChevronRight, Microscope } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -10,40 +10,40 @@ const CLINICAL_STUDIES: ImageMetadata[] = [
     patientName: "Sarah Jenkins",
     modality: "Histopathology - H&E Stain",
     date: "2024-03-02 10:30 AM",
-    resolution: "4000 x 3000 px",
-    url: "https://picsum.photos/seed/microscope-cells-1/4000/3000"
+    resolution: "8000 x 6000 px",
+    url: "https://images.unsplash.com/photo-1576086213369-97a306d36557?w=8000&h=6000&fit=crop"
   },
   {
     id: "CELL-002-B",
     patientName: "Robert Chen",
     modality: "Hematology - Peripheral Smear",
     date: "2024-03-02 11:15 AM",
-    resolution: "4000 x 3000 px",
-    url: "https://picsum.photos/seed/blood-cells-2/4000/3000"
+    resolution: "8000 x 6000 px",
+    url: "https://images.unsplash.com/photo-1530497610245-94d3c16cda28?w=8000&h=6000&fit=crop"
   },
   {
     id: "CELL-003-N",
     patientName: "Elena Rodriguez",
     modality: "Neuropathology - Silver Stain",
     date: "2024-03-01 02:45 PM",
-    resolution: "4000 x 3000 px",
-    url: "https://picsum.photos/seed/neuron-cells-3/4000/3000"
+    resolution: "8000 x 6000 px",
+    url: "https://images.unsplash.com/photo-1582719471137-c3967ffb1c42?w=8000&h=6000&fit=crop"
   },
   {
     id: "CELL-004-P",
     patientName: "Marcus Thorne",
     modality: "Cytopathology - Pap Smear",
     date: "2024-02-28 08:20 AM",
-    resolution: "4000 x 3000 px",
-    url: "https://picsum.photos/seed/pathology-cells-4/4000/3000"
+    resolution: "8000 x 6000 px",
+    url: "https://images.unsplash.com/photo-1614935151651-0bea6508db6b?w=8000&h=6000&fit=crop"
   },
   {
     id: "CELL-005-M",
     patientName: "Linda Wu",
     modality: "Immunofluorescence - Confocal",
     date: "2024-02-27 04:10 PM",
-    resolution: "4000 x 3000 px",
-    url: "https://picsum.photos/seed/fluorescence-cells-5/4000/3000"
+    resolution: "8000 x 6000 px",
+    url: "https://images.unsplash.com/photo-1628595351029-c2bf17511435?w=8000&h=6000&fit=crop"
   }
 ];
 

@@ -21,4 +21,11 @@ export interface Annotation {
   id: string;
   points: Point[];
   color: string;
+  label: string;
+}
+
+export interface AnnotationColor {
+  color: string;
+  label: string;
+  code: string;
 }

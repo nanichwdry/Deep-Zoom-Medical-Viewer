@@ -1,15 +1,22 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useDeepZoom } from '../hooks/useDeepZoom';
-import { ImageMetadata, Annotation, Point } from '../types';
+import { ImageMetadata, Annotation, Point, AnnotationColor } from '../types';
 import { 
   Maximize, Minimize, RotateCcw, Info, Activity, Layers, Search, 
-  Pencil, Save, Trash2, Download, Check
+  Pencil, Save, Trash2, Download, Check, Palette
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface ViewerProps {
   imageMetadata: ImageMetadata;
 }
+
+const ANNOTATION_COLORS: AnnotationColor[] = [
+  { color: '#ef4444', label: 'Abnormal Cells', code: 'AC-001' },
+  { color: '#3b82f6', label: 'Missing Fungi', code: 'MF-002' },
+  { color: '#22c55e', label: 'Healthy Tissue', code: 'HT-003' },
+  { color: '#f59e0b', label: 'Inflammation', code: 'IN-004' }
+];
 
 export const MedicalViewer: React.FC<ViewerProps> = ({ imageMetadata }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,6 +31,7 @@ export const MedicalViewer: React.FC<ViewerProps> = ({ imageMetadata }) => {
   const [mode, setMode] = useState<'view' | 'draw'>('view');
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [currentPath, setCurrentPath] = useState<Point[] | null>(null);
+  const [selectedColor, setSelectedColor] = useState<AnnotationColor>(ANNOTATION_COLORS[0]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -91,7 +99,8 @@ export const MedicalViewer: React.FC<ViewerProps> = ({ imageMetadata }) => {
       setAnnotations([...annotations, {
         id: Math.random().toString(36).substr(2, 9),
         points: currentPath,
-        color: '#10b981' // emerald-500
+        color: selectedColor.color,
+        label: selectedColor.label
       }]);
     }
     setCurrentPath(null);
@@ -134,7 +143,7 @@ export const MedicalViewer: React.FC<ViewerProps> = ({ imageMetadata }) => {
     };
 
     annotations.forEach(ann => drawPath(ann.points, ann.color));
-    if (currentPath) drawPath(currentPath, '#10b981');
+    if (currentPath) drawPath(currentPath, selectedColor.color);
     
     ctx.restore();
     ctx.filter = 'none';
@@ -153,60 +162,83 @@ export const MedicalViewer: React.FC<ViewerProps> = ({ imageMetadata }) => {
   };
 
   const saveSnippet = async () => {
-    if (!image || !canvasRef.current) return;
+    if (!image || !canvasRef.current || annotations.length === 0) return;
     setIsSaving(true);
     
     try {
-      // Create a 512x512 snippet canvas
-      const snippetCanvas = document.createElement('canvas');
-      snippetCanvas.width = 512;
-      snippetCanvas.height = 512;
-      const sCtx = snippetCanvas.getContext('2d');
-      if (!sCtx) return;
-
-      // We want to capture the center of the current view
-      const centerX = (canvasRef.current.width / 2 - viewState.offset.x) / viewState.scale;
-      const centerY = (canvasRef.current.height / 2 - viewState.offset.y) / viewState.scale;
-
-      // Draw the image and annotations onto the snippet canvas
-      sCtx.fillStyle = '#000';
-      sCtx.fillRect(0, 0, 512, 512);
+      const timestamp = Date.now();
       
-      sCtx.save();
-      sCtx.translate(256, 256); // Center of snippet
-      sCtx.scale(viewState.scale, viewState.scale);
-      sCtx.translate(-centerX, -centerY);
-      
-      // Apply filters (optional, but usually snippets should preserve the view)
-      sCtx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
-      sCtx.drawImage(image, 0, 0);
-      sCtx.filter = 'none';
+      // Helper to create snippet for an annotation
+      const createSnippet = (annotation: Annotation, index: number) => {
+        const snippetCanvas = document.createElement('canvas');
+        snippetCanvas.width = 512;
+        snippetCanvas.height = 512;
+        const sCtx = snippetCanvas.getContext('2d');
+        if (!sCtx) return null;
 
-      // Draw annotations
-      sCtx.lineCap = 'round';
-      sCtx.lineJoin = 'round';
-      sCtx.lineWidth = 2 / viewState.scale;
-      
-      const drawPathOnSnippet = (points: Point[], color: string) => {
-        if (points.length < 2) return;
-        sCtx.beginPath();
-        sCtx.strokeStyle = color;
-        sCtx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-          sCtx.lineTo(points[i].x, points[i].y);
-        }
-        sCtx.stroke();
+        // Calculate center of annotation
+        const bounds = annotation.points.reduce((acc, p) => ({
+          minX: Math.min(acc.minX, p.x),
+          maxX: Math.max(acc.maxX, p.x),
+          minY: Math.min(acc.minY, p.y),
+          maxY: Math.max(acc.maxY, p.y)
+        }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+        
+        const centerX = (bounds.minX + bounds.maxX) / 2;
+        const centerY = (bounds.minY + bounds.maxY) / 2;
+
+        sCtx.fillStyle = '#000';
+        sCtx.fillRect(0, 0, 512, 512);
+        sCtx.save();
+        sCtx.translate(256, 256);
+        sCtx.scale(viewState.scale, viewState.scale);
+        sCtx.translate(-centerX, -centerY);
+        sCtx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+        sCtx.drawImage(image, 0, 0);
+        sCtx.filter = 'none';
+        sCtx.restore();
+
+        return { canvas: snippetCanvas, ctx: sCtx, centerX, centerY, annotation, index };
       };
 
-      annotations.forEach(ann => drawPathOnSnippet(ann.points, ann.color));
-      sCtx.restore();
+      // Save snippets for each annotation
+      for (let i = 0; i < annotations.length; i++) {
+        const snippet = createSnippet(annotations[i], i);
+        if (!snippet) continue;
 
-      // Download the snippet
-      const dataUrl = snippetCanvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.download = `medical-snippet-${imageMetadata.id}-${Date.now()}.png`;
-      link.href = dataUrl;
-      link.click();
+        // Version 1: Original image only
+        const originalUrl = snippet.canvas.toDataURL('image/png');
+        const link1 = document.createElement('a');
+        link1.download = `${imageMetadata.id}-${annotations[i].label.replace(/\s+/g, '-')}-${i + 1}-original-${timestamp}.png`;
+        link1.href = originalUrl;
+        link1.click();
+
+        // Version 2: With annotation overlay at 0.5 opacity
+        snippet.ctx.save();
+        snippet.ctx.translate(256, 256);
+        snippet.ctx.scale(viewState.scale, viewState.scale);
+        snippet.ctx.translate(-snippet.centerX, -snippet.centerY);
+        snippet.ctx.globalAlpha = 0.5;
+        snippet.ctx.lineCap = 'round';
+        snippet.ctx.lineJoin = 'round';
+        snippet.ctx.lineWidth = 3 / viewState.scale;
+        snippet.ctx.strokeStyle = snippet.annotation.color;
+        snippet.ctx.beginPath();
+        snippet.ctx.moveTo(snippet.annotation.points[0].x, snippet.annotation.points[0].y);
+        for (let j = 1; j < snippet.annotation.points.length; j++) {
+          snippet.ctx.lineTo(snippet.annotation.points[j].x, snippet.annotation.points[j].y);
+        }
+        snippet.ctx.stroke();
+        snippet.ctx.restore();
+
+        const annotatedUrl = snippet.canvas.toDataURL('image/png');
+        const link2 = document.createElement('a');
+        link2.download = `${imageMetadata.id}-${annotations[i].label.replace(/\s+/g, '-')}-${i + 1}-annotated-${timestamp}.png`;
+        link2.href = annotatedUrl;
+        link2.click();
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
@@ -256,10 +288,34 @@ export const MedicalViewer: React.FC<ViewerProps> = ({ imageMetadata }) => {
           </div>
 
           <div className="w-px h-6 bg-white/10 mx-2" />
+
+          {mode === 'draw' && (
+            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-1 border border-white/10">
+              <Palette className="w-3 h-3 text-white/40 ml-2" />
+              {ANNOTATION_COLORS.map((colorOption) => (
+                <button
+                  key={colorOption.code}
+                  onClick={() => setSelectedColor(colorOption)}
+                  className={cn(
+                    "relative px-3 py-1.5 rounded-md text-[10px] font-bold transition-all flex items-center gap-2",
+                    selectedColor.code === colorOption.code ? "bg-white/10 shadow-lg" : "hover:bg-white/5"
+                  )}
+                  title={`${colorOption.label} (${colorOption.code})`}
+                >
+                  <div 
+                    className="w-3 h-3 rounded-full border-2 border-white/20" 
+                    style={{ backgroundColor: colorOption.color }}
+                  />
+                  <span style={{ color: colorOption.color }}>{colorOption.code}</span>
+                </button>
+              ))}
+            </div>
+          )}
           
+          <div className="w-px h-6 bg-white/10 mx-2" />
           <button 
             onClick={saveSnippet}
-            disabled={isSaving}
+            disabled={isSaving || annotations.length === 0}
             className={cn(
               "flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all border",
               saveSuccess 
@@ -274,7 +330,7 @@ export const MedicalViewer: React.FC<ViewerProps> = ({ imageMetadata }) => {
             ) : (
               <Save className="w-3 h-3" />
             )}
-            {saveSuccess ? "Saved" : "Save Snippet"}
+            {saveSuccess ? `Saved ${annotations.length * 2}` : `Save (${annotations.length})`}
           </button>
 
           <button 
